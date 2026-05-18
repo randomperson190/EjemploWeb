@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Drive Storage · GIS Token Flow</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='12' fill='%231a1d27'/><rect x='12' y='10' width='76' height='80' rx='6' fill='%234ade80'/><rect x='28' y='10' width='44' height='28' rx='3' fill='%230f1117'/><rect x='55' y='13' width='12' height='22' rx='2' fill='%234ade80'/><rect x='18' y='52' width='64' height='32' rx='4' fill='%230f1117'/><rect x='24' y='58' width='52' height='20' rx='3' fill='%231a1d27'/></svg>" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
   <!-- Google Identity Services -->
@@ -313,33 +314,23 @@
 
 <script>
 // ─── CONFIG ───────────────────────────────────────────────────────────────────
-// OAuth client type: "Web application" en Google Cloud Console
-// Authorized JavaScript origins: https://TU_USUARIO.github.io
-// NO necesitás redirect URIs para este flow
 const CLIENT_ID = "54886740879-bhbtkpd85av0mq44hc3qbqd87neaffc0.apps.googleusercontent.com";
-const SCOPE     = "https://www.googleapis.com/auth/drive.appdata";
+const SCOPE     = "https://www.googleapis.com/auth/drive.appdata openid profile email";
 const FILE_NAME = "datos.json";
 
-let accessToken  = null;
-let tokenClient  = null;   // GIS TokenClient
+let accessToken = null;
+let tokenClient = null;
 
-// ─── INIT GIS (se llama cuando la librería termina de cargar) ─────────────────
-function initGIS() {
-  tokenClient = google.accounts.oauth2.initTokenClient({
-    client_id: CLIENT_ID,
-    scope: SCOPE + " openid profile email",
-    callback: handleTokenResponse,
-    error_callback: handleTokenError,
-  });
-}
-
-// Esperar a que el script de GIS esté listo
+// ─── INIT GIS ─────────────────────────────────────────────────────────────────
 window.addEventListener("load", () => {
-  // El script GIS llama a google.accounts cuando está listo.
-  // Usamos un pequeño poll por si onload ya pasó.
   const tryInit = () => {
     if (typeof google !== "undefined" && google.accounts?.oauth2) {
-      initGIS();
+      tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id:      CLIENT_ID,
+        scope:          SCOPE,
+        callback:       handleTokenResponse,
+        error_callback: handleTokenError,
+      });
     } else {
       setTimeout(tryInit, 100);
     }
@@ -350,70 +341,82 @@ window.addEventListener("load", () => {
 // ─── LOGIN ────────────────────────────────────────────────────────────────────
 function login() {
   if (!tokenClient) {
-    mostrarError("La librería de Google aún no cargó. Esperá un momento y volvé a intentar.");
+    mostrarError("La librería de Google aún no cargó. Esperá un momento.");
     return;
   }
-  // Pedimos el token directamente. El popup de Google se abre.
   tokenClient.requestAccessToken({ prompt: "consent" });
 }
 
-// ─── CALLBACK: token recibido ─────────────────────────────────────────────────
-async function handleTokenResponse(response) {
-  if (response.error) {
-    handleTokenError(response);
-    return;
+// ─── REFRESH TOKEN (silent, sin prompt) ───────────────────────────────────────
+function refreshToken() {
+  return new Promise((resolve, reject) => {
+    const prev = tokenClient.callback;
+    tokenClient.callback = (resp) => {
+      tokenClient.callback = prev;
+      if (resp.error) { reject(resp); return; }
+      accessToken = resp.access_token;
+      resolve();
+    };
+    tokenClient.requestAccessToken({ prompt: "" }); // sin popup si ya autorizó
+  });
+}
+
+// ─── API helper: reintenta con refresh si recibe 401 ─────────────────────────
+async function apiFetch(url, opts = {}) {
+  opts.headers = { ...(opts.headers || {}), Authorization: `Bearer ${accessToken}` };
+  let res = await fetch(url, opts);
+
+  if (res.status === 401) {
+    // Token expirado → refresh silencioso y reintento
+    await refreshToken();
+    opts.headers.Authorization = `Bearer ${accessToken}`;
+    res = await fetch(url, opts);
   }
+  return res;
+}
 
+// ─── CALLBACKS ────────────────────────────────────────────────────────────────
+async function handleTokenResponse(response) {
+  if (response.error) { handleTokenError(response); return; }
   accessToken = response.access_token;
-
-  // Limpiar error si había alguno
   document.getElementById("errorBox").style.display = "none";
-
   mostrarApp();
   await cargarPerfil();
   await cargar();
 }
 
-// ─── CALLBACK: error en el token ──────────────────────────────────────────────
 function handleTokenError(err) {
   const msg = err.type || err.error || "Error desconocido";
   const hints = {
-    "popup_closed_by_user": "Cerraste el popup antes de completar el login.",
-    "access_denied":        "Denegaste el acceso. Es necesario para usar la app.",
+    "popup_closed_by_user":     "Cerraste el popup antes de completar el login.",
+    "access_denied":            "Denegaste el acceso. Es necesario para usar la app.",
     "popup_blocked_by_browser": "El navegador bloqueó el popup. Permití popups para este sitio.",
   };
-  mostrarError(msg, hints[msg] || "Revisá la consola del navegador para más detalles.");
+  mostrarError(msg, hints[msg] || "Revisá la consola del navegador.");
 }
 
 // ─── PERFIL ───────────────────────────────────────────────────────────────────
 async function cargarPerfil() {
   try {
-    const res  = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
-      headers: { Authorization: `Bearer ${accessToken}` }
-    });
+    const res  = await apiFetch("https://www.googleapis.com/oauth2/v3/userinfo");
     const info = await res.json();
     document.getElementById("userName").textContent  = info.name  || "—";
     document.getElementById("userEmail").textContent = info.email || "—";
     if (info.picture) document.getElementById("userAvatar").src = info.picture;
-  } catch (e) {
-    console.warn("No se pudo cargar el perfil:", e);
-  }
+  } catch (e) { console.warn("Perfil:", e); }
 }
 
-// ─── UI helpers ───────────────────────────────────────────────────────────────
+// ─── UI ───────────────────────────────────────────────────────────────────────
 function mostrarApp() {
   document.getElementById("loginView").style.display = "none";
   const app = document.getElementById("appView");
-  app.style.display        = "flex";
-  app.style.flexDirection  = "column";
-  app.style.gap            = "16px";
+  app.style.display = "flex";
+  app.style.flexDirection = "column";
+  app.style.gap = "16px";
 }
 
 function logout() {
-  // Revocar el token en Google
-  if (accessToken) {
-    google.accounts.oauth2.revoke(accessToken, () => {});
-  }
+  if (accessToken) google.accounts.oauth2.revoke(accessToken, () => {});
   accessToken = null;
   document.getElementById("loginView").style.display = "block";
   document.getElementById("appView").style.display   = "none";
@@ -433,19 +436,17 @@ function mostrarError(msg, hint = "") {
 function setStatus(msg, type = "") {
   const el = document.getElementById("status");
   el.className = "status" + (type === "ok" ? " ok" : type === "err" ? " err" : "");
-  el.innerHTML = type === "loading"
-    ? `<span class="spinner"></span> ${msg}`
-    : msg;
+  el.innerHTML = type === "loading" ? `<span class="spinner"></span> ${msg}` : msg;
 }
 
-// ─── DRIVE: encontrar archivo ─────────────────────────────────────────────────
+// ─── DRIVE: buscar fileId ─────────────────────────────────────────────────────
 async function getFileId() {
-  const res  = await fetch(
-    `https://www.googleapis.com/drive/v3/files?q=name='${FILE_NAME}' and spaces='appDataFolder'&fields=files(id)`,
-    { headers: { Authorization: `Bearer ${accessToken}` } }
+  const res  = await apiFetch(
+    `https://www.googleapis.com/drive/v3/files?q=name%3D'${FILE_NAME}'%20and%20spaces%3D'appDataFolder'&fields=files(id)`
   );
   const data = await res.json();
-  return data.files?.[0]?.id || null;
+  if (data.error) throw new Error(data.error.message);
+  return data.files?.[0]?.id ?? null;
 }
 
 // ─── GUARDAR ──────────────────────────────────────────────────────────────────
@@ -454,29 +455,37 @@ async function guardar() {
   setStatus("Guardando…", "loading");
 
   try {
-    const contenido = { dato: document.getElementById("input").value, ts: new Date().toISOString() };
-    let fileId = await getFileId();
+    const body    = JSON.stringify({ dato: document.getElementById("input").value, ts: new Date().toISOString() });
+    const fileId  = await getFileId();
 
     if (!fileId) {
-      const form = new FormData();
-      form.append("metadata", new Blob([JSON.stringify({
-        name: FILE_NAME, parents: ["appDataFolder"]
-      })], { type: "application/json" }));
-      form.append("file", new Blob([JSON.stringify(contenido)], { type: "application/json" }));
+      // ── Crear: multipart manual (sin FormData para evitar boundary issues) ──
+      const boundary = "foo_bar_baz_boundary";
+      const metadata = JSON.stringify({ name: FILE_NAME, parents: ["appDataFolder"] });
+      const multipart =
+        `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n` +
+        `--${boundary}\r\nContent-Type: application/json\r\n\r\n${body}\r\n` +
+        `--${boundary}--`;
 
-      const res  = await fetch(
+      const res  = await apiFetch(
         "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart",
-        { method: "POST", headers: { Authorization: `Bearer ${accessToken}` }, body: form }
+        {
+          method: "POST",
+          headers: { "Content-Type": `multipart/related; boundary=${boundary}` },
+          body:   multipart,
+        }
       );
       const data = await res.json();
       if (data.error) throw new Error(data.error.message);
+
     } else {
-      const res = await fetch(
+      // ── Actualizar: media simple ──
+      const res  = await apiFetch(
         `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`,
         {
-          method: "PATCH",
-          headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-          body: JSON.stringify(contenido)
+          method:  "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body,
         }
       );
       const data = await res.json();
@@ -484,6 +493,7 @@ async function guardar() {
     }
 
     setStatus(`Guardado a las ${new Date().toLocaleTimeString()} ✓`, "ok");
+
   } catch (e) {
     mostrarError("Error al guardar: " + e.message);
   }
@@ -498,16 +508,15 @@ async function cargar() {
     const fileId = await getFileId();
     if (!fileId) { setStatus("No hay datos guardados todavía"); return; }
 
-    const res  = await fetch(
-      `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
-      { headers: { Authorization: `Bearer ${accessToken}` } }
+    const res  = await apiFetch(
+      `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`
     );
     const data = await res.json();
     if (data.error) throw new Error(data.error.message);
 
     document.getElementById("input").value = data.dato || "";
-    const ts = data.ts ? new Date(data.ts).toLocaleString() : "?";
-    setStatus(`Último guardado: ${ts}`, "ok");
+    setStatus(`Último guardado: ${data.ts ? new Date(data.ts).toLocaleString() : "?"}`, "ok");
+
   } catch (e) {
     mostrarError("Error al cargar: " + e.message);
   }
