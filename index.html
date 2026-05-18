@@ -330,8 +330,8 @@ window.addEventListener("load", () => {
         callback:       handleTokenResponse,
         error_callback: handleTokenError,
       });
-      // Intentar sesión silenciosa si el usuario ya autorizó antes
-      autoLogin();
+      // Mostrar botón "Reconectar" si el usuario ya autorizó antes
+      checkPrevSession();
     } else {
       setTimeout(tryInit, 100);
     }
@@ -339,28 +339,26 @@ window.addEventListener("load", () => {
   tryInit();
 });
 
-// ─── AUTO-LOGIN SILENCIOSO (al recargar la página) ────────────────────────────
-// Si el usuario ya autorizó la app, Google renueva el token sin popup.
-// Si no autorizó, simplemente muestra el botón de login — sin error.
-function autoLogin() {
-  const hadSession = sessionStorage.getItem("gis_had_session");
-  if (!hadSession) return; // primera visita, no molestar
+// ─── SESIÓN PREVIA ────────────────────────────────────────────────────────────
+// Si el usuario ya autorizó antes, mostramos un botón especial de reconexión
+// en lugar de intentar un silent login (que dispara popup y los browsers lo bloquean).
+function checkPrevSession() {
+  const hadSession = localStorage.getItem("gis_had_session");
+  if (!hadSession) return; // primera visita, mostrar login normal
 
-  const prev = tokenClient.callback;
-  tokenClient.callback = (resp) => {
-    tokenClient.callback = prev;
-    if (resp.error) {
-      // Falló el silent — mostrar login normal, sin error visible
-      sessionStorage.removeItem("gis_had_session");
-      return;
-    }
-    accessToken = resp.access_token;
-    mostrarApp();
-    cargarPerfil();
-    cargar();
-  };
-  // prompt: "" → sin UI si ya está autorizado, falla silenciosamente si no
-  tokenClient.requestAccessToken({ prompt: "" });
+  // Cambiar el texto del botón para indicar que ya autorizó antes
+  const btn = document.querySelector(".btn-google");
+  if (btn) {
+    btn.innerHTML = btn.innerHTML.replace("Continuar con Google", "Reconectar con Google");
+  }
+}
+
+// ─── AUTO-LOGIN SILENCIOSO (solo cuando el usuario lo pide explícitamente) ────
+// Nota: los browsers modernos bloquean cualquier popup no iniciado por un gesto
+// del usuario. Por eso el silent refresh solo se llama desde refreshToken()
+// (que ocurre dentro de apiFetch, que siempre está gatillada por un click).
+function autoLogin() {
+  // Función mantenida por compatibilidad — ya no se llama al cargar la página.
 }
 
 // ─── LOGIN MANUAL (botón) ─────────────────────────────────────────────────────
@@ -369,7 +367,9 @@ function login() {
     mostrarError("La librería de Google aún no cargó. Esperá un momento.");
     return;
   }
-  tokenClient.requestAccessToken({ prompt: "consent" });
+  // Si ya autorizó antes, "select_account" evita pedir consent de nuevo.
+  const hadSession = localStorage.getItem("gis_had_session");
+  tokenClient.requestAccessToken({ prompt: hadSession ? "select_account" : "consent" });
 }
 
 // ─── REFRESH TOKEN (silent, para cuando expira en medio de uso) ───────────────
@@ -402,7 +402,7 @@ async function apiFetch(url, opts = {}) {
 async function handleTokenResponse(response) {
   if (response.error) { handleTokenError(response); return; }
   accessToken = response.access_token;
-  sessionStorage.setItem("gis_had_session", "1"); // marcar que autorizó
+  localStorage.setItem("gis_had_session", "1"); // marcar que autorizó (persiste entre recargas)
   document.getElementById("errorBox").style.display = "none";
   mostrarApp();
   await cargarPerfil();
@@ -442,7 +442,7 @@ function mostrarApp() {
 function logout() {
   if (accessToken) google.accounts.oauth2.revoke(accessToken, () => {});
   accessToken = null;
-  sessionStorage.removeItem("gis_had_session");
+  localStorage.removeItem("gis_had_session");
   document.getElementById("loginView").style.display = "block";
   document.getElementById("appView").style.display   = "none";
   document.getElementById("input").value = "";
