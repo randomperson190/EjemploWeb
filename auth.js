@@ -1,4 +1,4 @@
-const clientId = "TU_CLIENT_ID";
+const clientId = "54886740879-bhbtkpd85av0mq44hc3qbqd87neaffc0.apps.googleusercontent.com";
 const redirectUri = window.location.origin + window.location.pathname;
 const scope = "openid profile email https://www.googleapis.com/auth/drive.appdata";
 
