@@ -1,22 +1,23 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <title>Asistencia</title>
+  <meta charset="UTF-8">
+  <title>Drive Storage</title>
 </head>
 <body>
 
-  <h2>Mi App de Asistencia</h2>
+  <h2>Guardar en Google Drive</h2>
 
-  <button id="loginBtn">Login con Google</button>
+  <button onclick="login()">Login con Google</button>
+  <br><br>
 
-  <div id="app" style="display:none;">
-    <p id="estadoActual">Cargando...</p>
+  <input id="input" placeholder="Escribí algo">
+  <button onclick="guardar()">Guardar en Drive</button>
 
-    <button onclick="guardarEstado('presente')">Estoy presente</button>
-    <button onclick="guardarEstado('ausente')">Estoy ausente</button>
-  </div>
+  <p id="estado"></p>
 
-  <script src="app.js"></script>
+  <script src="https://apis.google.com/js/api.js"></script>
+  <script src="script.js"></script>
+
 </body>
 </html>
