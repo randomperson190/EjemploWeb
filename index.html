@@ -208,6 +208,44 @@
       font-family: var(--mono);
       text-align: center;
     }
+
+    .error-box {
+      display: none;
+      background: rgba(248,113,113,0.08);
+      border: 1px solid rgba(248,113,113,0.35);
+      border-radius: 10px;
+      padding: 14px 16px;
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--danger);
+      line-height: 1.6;
+      word-break: break-all;
+    }
+
+    .error-box strong {
+      display: block;
+      font-size: 13px;
+      margin-bottom: 6px;
+    }
+
+    .error-box .hint {
+      margin-top: 10px;
+      color: #fbbf24;
+      font-size: 11px;
+    }
+
+    .debug-box {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    .debug-box span { color: var(--accent); }
   </style>
 </head>
 <body>
@@ -219,6 +257,20 @@
   </div>
 
   <div class="card-body">
+
+    <!-- ERROR -->
+    <div class="error-box" id="errorBox">
+      <strong>⚠ Error en el intercambio de token</strong>
+      <span id="errorMsg"></span>
+      <div class="hint" id="errorHint"></div>
+    </div>
+
+    <!-- DEBUG INFO -->
+    <div class="debug-box" id="debugBox" style="display:none">
+      <div>redirect_uri: <span id="dbgRedirect"></span></div>
+      <div>code detectado: <span id="dbgCode"></span></div>
+      <div>verifier en storage: <span id="dbgVerifier"></span></div>
+    </div>
 
     <!-- LOGIN -->
     <div id="loginView">
@@ -311,32 +363,74 @@ async function login() {
 
 // ─── TOKEN EXCHANGE ───────────────────────────────────
 async function intercambiarCodigo(code) {
+  // Mostrar debug info
+  const dbg = document.getElementById("debugBox");
+  dbg.style.display = "block";
+  document.getElementById("dbgRedirect").textContent  = REDIRECT_URI;
+  document.getElementById("dbgCode").textContent      = code ? code.slice(0, 20) + "…" : "no detectado";
+  document.getElementById("dbgVerifier").textContent  = localStorage.getItem("pkce_verifier") ? "✓ presente" : "✗ ausente";
+
   setStatus("Autenticando…", "loading");
 
-  const res = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      client_id:     CLIENT_ID,
-      code,
-      code_verifier: localStorage.getItem("pkce_verifier"),
-      grant_type:    "authorization_code",
-      redirect_uri:  REDIRECT_URI
-    })
-  });
+  let res, data;
+  try {
+    res  = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id:     CLIENT_ID,
+        code,
+        code_verifier: localStorage.getItem("pkce_verifier"),
+        grant_type:    "authorization_code",
+        redirect_uri:  REDIRECT_URI
+      })
+    });
+    data = await res.json();
+  } catch (e) {
+    mostrarError("Error de red: " + e.message, "Verificá tu conexión a internet.");
+    return;
+  }
 
-  const data = await res.json();
-  if (!data.access_token) { setStatus("Error al autenticar", "err"); return; }
+  if (data.error) {
+    const hints = {
+      "redirect_uri_mismatch":
+        `El redirect_uri no coincide. Registrá EXACTAMENTE esto en Google Cloud Console → Credentials:\n${REDIRECT_URI}`,
+      "invalid_client":
+        "Tu cliente OAuth requiere client_secret (tipo 'Web application'). Creá un nuevo cliente de tipo 'Desktop app' en Google Cloud Console para usar PKCE sin secret.",
+      "invalid_grant":
+        "El código ya fue usado o expiró. Intentá loguearte de nuevo.",
+    };
+    mostrarError(
+      `${data.error}: ${data.error_description || ""}`,
+      hints[data.error] || "Revisá la consola del navegador para más detalles."
+    );
+    console.error("Token error response:", data);
+    return;
+  }
 
+  if (!data.access_token) {
+    mostrarError("Respuesta inesperada — no llegó access_token.", JSON.stringify(data));
+    return;
+  }
+
+  // Todo OK
   accessToken = data.access_token;
   localStorage.removeItem("pkce_verifier");
+  dbg.style.display = "none";
 
-  // Limpiar la URL
   window.history.replaceState({}, "", REDIRECT_URI);
 
   mostrarApp();
   await cargarPerfil();
   await cargar();
+}
+
+function mostrarError(msg, hint = "") {
+  setStatus("Error — ver detalle abajo", "err");
+  const box = document.getElementById("errorBox");
+  box.style.display = "block";
+  document.getElementById("errorMsg").textContent  = msg;
+  document.getElementById("errorHint").textContent = hint;
 }
 
 // ─── PERFIL ───────────────────────────────────────────
