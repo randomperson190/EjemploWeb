@@ -1,26 +1,22 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <title>Asistencia App</title>
-  <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8" />
+  <title>Asistencia</title>
 </head>
 <body>
 
-  <h1>Asistencia</h1>
+  <h2>Mi App de Asistencia</h2>
 
   <button id="loginBtn">Login con Google</button>
 
   <div id="app" style="display:none;">
-    <p id="user"></p>
+    <p id="estadoActual">Cargando...</p>
 
-    <button id="checkBtn">Marcar asistencia</button>
-
-    <pre id="output"></pre>
+    <button onclick="guardarEstado('presente')">Estoy presente</button>
+    <button onclick="guardarEstado('ausente')">Estoy ausente</button>
   </div>
 
-  <script src="auth.js"></script>
   <script src="app.js"></script>
-
 </body>
 </html>
