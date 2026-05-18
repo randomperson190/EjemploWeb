@@ -1,23 +1,448 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <title>Drive Storage</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Drive Storage · PKCE</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --border: #2a2d3a;
+      --accent: #4ade80;
+      --accent-dim: rgba(74, 222, 128, 0.12);
+      --text: #e8eaf0;
+      --muted: #6b7280;
+      --danger: #f87171;
+      --mono: 'DM Mono', monospace;
+      --sans: 'DM Sans', sans-serif;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      width: 100%;
+      max-width: 460px;
+      overflow: hidden;
+    }
+
+    .card-header {
+      padding: 28px 28px 20px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--accent-dim);
+      color: var(--accent);
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 500;
+      padding: 4px 10px;
+      border-radius: 99px;
+      margin-bottom: 14px;
+    }
+
+    .badge::before {
+      content: '';
+      width: 6px; height: 6px;
+      background: var(--accent);
+      border-radius: 50%;
+    }
+
+    h1 {
+      font-size: 22px;
+      font-weight: 600;
+      letter-spacing: -0.3px;
+    }
+
+    h1 span { color: var(--muted); font-weight: 400; }
+
+    .card-body { padding: 24px 28px; display: flex; flex-direction: column; gap: 16px; }
+
+    /* Login view */
+    #loginView p {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.6;
+      margin-bottom: 8px;
+    }
+
+    /* App view */
+    #appView { display: none; }
+
+    .user-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px;
+      background: var(--bg);
+      border-radius: 10px;
+      border: 1px solid var(--border);
+    }
+
+    .user-row img {
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      object-fit: cover;
+    }
+
+    .user-row .user-info { flex: 1; min-width: 0; }
+    .user-row .user-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .user-row .user-email { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    label {
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    textarea {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 13px;
+      padding: 12px 14px;
+      resize: vertical;
+      min-height: 100px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    textarea:focus { border-color: var(--accent); }
+
+    .btn-row { display: flex; gap: 10px; }
+
+    button {
+      font-family: var(--sans);
+      font-size: 14px;
+      font-weight: 600;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      padding: 11px 18px;
+      transition: opacity 0.15s, transform 0.1s;
+      display: flex; align-items: center; gap: 7px;
+    }
+
+    button:active { transform: scale(0.97); }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #0f1117;
+      flex: 1;
+    }
+
+    .btn-secondary {
+      background: var(--border);
+      color: var(--text);
+    }
+
+    .btn-google {
+      background: #fff;
+      color: #1f2937;
+      width: 100%;
+      justify-content: center;
+      padding: 13px;
+    }
+
+    .btn-google svg { flex-shrink: 0; }
+
+    .status {
+      font-family: var(--mono);
+      font-size: 12px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--muted);
+      min-height: 38px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .status.ok { color: var(--accent); border-color: rgba(74,222,128,0.3); }
+    .status.err { color: var(--danger); border-color: rgba(248,113,113,0.3); }
+
+    .spinner {
+      width: 12px; height: 12px;
+      border: 2px solid currentColor;
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      flex-shrink: 0;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .card-footer {
+      padding: 14px 28px;
+      border-top: 1px solid var(--border);
+      font-size: 11px;
+      color: var(--muted);
+      font-family: var(--mono);
+      text-align: center;
+    }
+  </style>
 </head>
 <body>
 
-  <h2>Guardar en Google Drive</h2>
+<div class="card">
+  <div class="card-header">
+    <div class="badge">PKCE + Drive</div>
+    <h1>Drive Storage <span>/ ejemplo</span></h1>
+  </div>
 
-  <button onclick="login()">Login con Google</button>
-  <br><br>
+  <div class="card-body">
 
-  <input id="input" placeholder="Escribí algo">
-  <button onclick="guardar()">Guardar en Drive</button>
+    <!-- LOGIN -->
+    <div id="loginView">
+      <p>Autenticá con tu cuenta de Google para guardar y leer datos en tu propio Google Drive usando OAuth 2.0 PKCE.</p>
+      <button class="btn-google" onclick="login()">
+        <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615Z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18Z"/><path fill="#FBBC05" d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332Z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 6.29C4.672 4.163 6.656 3.58 9 3.58Z"/></svg>
+        Continuar con Google
+      </button>
+    </div>
 
-  <p id="estado"></p>
+    <!-- APP -->
+    <div id="appView">
+      <div class="user-row" id="userRow">
+        <img id="userAvatar" src="" alt="" />
+        <div class="user-info">
+          <div class="user-name" id="userName">—</div>
+          <div class="user-email" id="userEmail">—</div>
+        </div>
+        <button class="btn-secondary" style="padding:7px 12px;font-size:12px" onclick="logout()">Salir</button>
+      </div>
 
-  <script src="https://apis.google.com/js/api.js"></script>
-  <script src="script.js"></script>
+      <div>
+        <label>Dato a guardar</label>
+        <textarea id="input" placeholder="Escribí cualquier texto..."></textarea>
+      </div>
 
+      <div class="btn-row">
+        <button class="btn-primary" onclick="guardar()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          Guardar
+        </button>
+        <button class="btn-secondary" onclick="cargar()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.92"/></svg>
+          Cargar
+        </button>
+      </div>
+
+      <div class="status" id="status">Listo</div>
+    </div>
+
+  </div>
+
+  <div class="card-footer">appDataFolder · los datos son privados por app</div>
+</div>
+
+<script>
+// ─── CONFIG ───────────────────────────────────────────
+const CLIENT_ID    = "54886740879-bhbtkpd85av0mq44hc3qbqd87neaffc0.apps.googleusercontent.com";
+const REDIRECT_URI = window.location.origin + window.location.pathname;
+const SCOPE        = "openid profile email https://www.googleapis.com/auth/drive.appdata";
+const FILE_NAME    = "datos.json";
+
+let accessToken = null;
+
+// ─── PKCE helpers ─────────────────────────────────────
+function randomString(len) {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  return Array.from(crypto.getRandomValues(new Uint8Array(len)))
+    .map(v => chars[v % chars.length]).join("");
+}
+
+async function sha256(plain) {
+  const data = new TextEncoder().encode(plain);
+  return crypto.subtle.digest("SHA-256", data);
+}
+
+function base64url(buf) {
+  return btoa(String.fromCharCode(...new Uint8Array(buf)))
+    .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+// ─── LOGIN ────────────────────────────────────────────
+async function login() {
+  const verifier   = randomString(64);
+  const challenge  = base64url(await sha256(verifier));
+  localStorage.setItem("pkce_verifier", verifier);
+
+  const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
+  url.searchParams.set("client_id",             CLIENT_ID);
+  url.searchParams.set("redirect_uri",          REDIRECT_URI);
+  url.searchParams.set("response_type",         "code");
+  url.searchParams.set("scope",                 SCOPE);
+  url.searchParams.set("code_challenge",        challenge);
+  url.searchParams.set("code_challenge_method", "S256");
+  url.searchParams.set("access_type",           "offline");
+  url.searchParams.set("prompt",                "consent");
+
+  window.location = url.toString();
+}
+
+// ─── TOKEN EXCHANGE ───────────────────────────────────
+async function intercambiarCodigo(code) {
+  setStatus("Autenticando…", "loading");
+
+  const res = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id:     CLIENT_ID,
+      code,
+      code_verifier: localStorage.getItem("pkce_verifier"),
+      grant_type:    "authorization_code",
+      redirect_uri:  REDIRECT_URI
+    })
+  });
+
+  const data = await res.json();
+  if (!data.access_token) { setStatus("Error al autenticar", "err"); return; }
+
+  accessToken = data.access_token;
+  localStorage.removeItem("pkce_verifier");
+
+  // Limpiar la URL
+  window.history.replaceState({}, "", REDIRECT_URI);
+
+  mostrarApp();
+  await cargarPerfil();
+  await cargar();
+}
+
+// ─── PERFIL ───────────────────────────────────────────
+async function cargarPerfil() {
+  const res  = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+    headers: { Authorization: `Bearer ${accessToken}` }
+  });
+  const info = await res.json();
+  document.getElementById("userName").textContent  = info.name  || "—";
+  document.getElementById("userEmail").textContent = info.email || "—";
+  if (info.picture) document.getElementById("userAvatar").src = info.picture;
+}
+
+// ─── UI helpers ───────────────────────────────────────
+function mostrarApp() {
+  document.getElementById("loginView").style.display = "none";
+  document.getElementById("appView").style.display   = "flex";
+  document.getElementById("appView").style.flexDirection = "column";
+  document.getElementById("appView").style.gap = "16px";
+}
+
+function logout() {
+  accessToken = null;
+  document.getElementById("loginView").style.display = "block";
+  document.getElementById("appView").style.display   = "none";
+  document.getElementById("input").value = "";
+  setStatus("Listo");
+}
+
+function setStatus(msg, type = "") {
+  const el = document.getElementById("status");
+  el.className = "status" + (type === "ok" ? " ok" : type === "err" ? " err" : "");
+  el.innerHTML = type === "loading"
+    ? `<span class="spinner"></span> ${msg}`
+    : msg;
+}
+
+// ─── DRIVE: encontrar o crear archivo ─────────────────
+async function getFileId() {
+  const res  = await fetch(
+    `https://www.googleapis.com/drive/v3/files?q=name='${FILE_NAME}' and spaces='appDataFolder'&fields=files(id)`,
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+  const data = await res.json();
+  return data.files?.[0]?.id || null;
+}
+
+// ─── GUARDAR ──────────────────────────────────────────
+async function guardar() {
+  if (!accessToken) return;
+  setStatus("Guardando…", "loading");
+
+  const contenido = { dato: document.getElementById("input").value, ts: new Date().toISOString() };
+  let fileId = await getFileId();
+
+  if (!fileId) {
+    // Crear archivo nuevo
+    const form = new FormData();
+    form.append("metadata", new Blob([JSON.stringify({
+      name: FILE_NAME, parents: ["appDataFolder"]
+    })], { type: "application/json" }));
+    form.append("file", new Blob([JSON.stringify(contenido)], { type: "application/json" }));
+
+    const res  = await fetch(
+      "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart",
+      { method: "POST", headers: { Authorization: `Bearer ${accessToken}` }, body: form }
+    );
+    const data = await res.json();
+    fileId = data.id;
+  } else {
+    // Actualizar existente
+    await fetch(
+      `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`,
+      {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify(contenido)
+      }
+    );
+  }
+
+  setStatus(`Guardado a las ${new Date().toLocaleTimeString()} ✓`, "ok");
+}
+
+// ─── CARGAR ───────────────────────────────────────────
+async function cargar() {
+  if (!accessToken) return;
+  setStatus("Cargando…", "loading");
+
+  const fileId = await getFileId();
+  if (!fileId) { setStatus("No hay datos guardados todavía"); return; }
+
+  const res  = await fetch(
+    `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+  const data = await res.json();
+
+  document.getElementById("input").value = data.dato || "";
+  const ts = data.ts ? new Date(data.ts).toLocaleString() : "?";
+  setStatus(`Último guardado: ${ts}`, "ok");
+}
+
+// ─── INIT ─────────────────────────────────────────────
+const code = new URLSearchParams(window.location.search).get("code");
+if (code) intercambiarCodigo(code);
+</script>
 </body>
 </html>
