@@ -307,8 +307,7 @@
 
   <div class="card-footer">
     appDataFolder · los datos son privados por app<br>
-    <span style="opacity:0.6">GIS · Token Flow · sin client_secret · </span><a href="https://pages.github.com" target="_blank" rel="noopener">GitHub Pages</a><br>
-    <span style="opacity:0.45; font-size:10px;">build: BUILD_TIMESTAMP</span>
+    <span style="opacity:0.6">GIS · Token Flow · sin client_secret · </span><a href="https://pages.github.com" target="_blank" rel="noopener">GitHub Pages</a>
   </div>
 </div>
 
@@ -331,6 +330,8 @@ window.addEventListener("load", () => {
         callback:       handleTokenResponse,
         error_callback: handleTokenError,
       });
+      // Intentar sesión silenciosa si el usuario ya autorizó antes
+      autoLogin();
     } else {
       setTimeout(tryInit, 100);
     }
@@ -338,7 +339,31 @@ window.addEventListener("load", () => {
   tryInit();
 });
 
-// ─── LOGIN ────────────────────────────────────────────────────────────────────
+// ─── AUTO-LOGIN SILENCIOSO (al recargar la página) ────────────────────────────
+// Si el usuario ya autorizó la app, Google renueva el token sin popup.
+// Si no autorizó, simplemente muestra el botón de login — sin error.
+function autoLogin() {
+  const hadSession = sessionStorage.getItem("gis_had_session");
+  if (!hadSession) return; // primera visita, no molestar
+
+  const prev = tokenClient.callback;
+  tokenClient.callback = (resp) => {
+    tokenClient.callback = prev;
+    if (resp.error) {
+      // Falló el silent — mostrar login normal, sin error visible
+      sessionStorage.removeItem("gis_had_session");
+      return;
+    }
+    accessToken = resp.access_token;
+    mostrarApp();
+    cargarPerfil();
+    cargar();
+  };
+  // prompt: "" → sin UI si ya está autorizado, falla silenciosamente si no
+  tokenClient.requestAccessToken({ prompt: "" });
+}
+
+// ─── LOGIN MANUAL (botón) ─────────────────────────────────────────────────────
 function login() {
   if (!tokenClient) {
     mostrarError("La librería de Google aún no cargó. Esperá un momento.");
@@ -347,7 +372,7 @@ function login() {
   tokenClient.requestAccessToken({ prompt: "consent" });
 }
 
-// ─── REFRESH TOKEN (silent, sin prompt) ───────────────────────────────────────
+// ─── REFRESH TOKEN (silent, para cuando expira en medio de uso) ───────────────
 function refreshToken() {
   return new Promise((resolve, reject) => {
     const prev = tokenClient.callback;
@@ -357,17 +382,15 @@ function refreshToken() {
       accessToken = resp.access_token;
       resolve();
     };
-    tokenClient.requestAccessToken({ prompt: "" }); // sin popup si ya autorizó
+    tokenClient.requestAccessToken({ prompt: "" });
   });
 }
 
-// ─── API helper: reintenta con refresh si recibe 401 ─────────────────────────
+// ─── API FETCH con auto-refresh en 401 ───────────────────────────────────────
 async function apiFetch(url, opts = {}) {
   opts.headers = { ...(opts.headers || {}), Authorization: `Bearer ${accessToken}` };
   let res = await fetch(url, opts);
-
   if (res.status === 401) {
-    // Token expirado → refresh silencioso y reintento
     await refreshToken();
     opts.headers.Authorization = `Bearer ${accessToken}`;
     res = await fetch(url, opts);
@@ -379,6 +402,7 @@ async function apiFetch(url, opts = {}) {
 async function handleTokenResponse(response) {
   if (response.error) { handleTokenError(response); return; }
   accessToken = response.access_token;
+  sessionStorage.setItem("gis_had_session", "1"); // marcar que autorizó
   document.getElementById("errorBox").style.display = "none";
   mostrarApp();
   await cargarPerfil();
@@ -410,14 +434,15 @@ async function cargarPerfil() {
 function mostrarApp() {
   document.getElementById("loginView").style.display = "none";
   const app = document.getElementById("appView");
-  app.style.display = "flex";
+  app.style.display       = "flex";
   app.style.flexDirection = "column";
-  app.style.gap = "16px";
+  app.style.gap           = "16px";
 }
 
 function logout() {
   if (accessToken) google.accounts.oauth2.revoke(accessToken, () => {});
   accessToken = null;
+  sessionStorage.removeItem("gis_had_session");
   document.getElementById("loginView").style.display = "block";
   document.getElementById("appView").style.display   = "none";
   document.getElementById("input").value = "";
@@ -441,8 +466,6 @@ function setStatus(msg, type = "") {
 
 // ─── DRIVE: buscar fileId ─────────────────────────────────────────────────────
 async function getFileId() {
-  // Para appDataFolder el único filtro que funciona es por nombre en el campo q
-  // y spaces como parámetro separado — NO dentro del q
   const res  = await apiFetch(
     "https://www.googleapis.com/drive/v3/files?" +
     "spaces=appDataFolder" +
@@ -458,47 +481,32 @@ async function getFileId() {
 async function guardar() {
   if (!accessToken) return;
   setStatus("Guardando…", "loading");
-
   try {
-    const body    = JSON.stringify({ dato: document.getElementById("input").value, ts: new Date().toISOString() });
-    const fileId  = await getFileId();
+    const body   = JSON.stringify({ dato: document.getElementById("input").value, ts: new Date().toISOString() });
+    const fileId = await getFileId();
 
     if (!fileId) {
-      // ── Crear: multipart manual (sin FormData para evitar boundary issues) ──
       const boundary = "foo_bar_baz_boundary";
       const metadata = JSON.stringify({ name: FILE_NAME, parents: ["appDataFolder"] });
       const multipart =
         `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n` +
         `--${boundary}\r\nContent-Type: application/json\r\n\r\n${body}\r\n` +
         `--${boundary}--`;
-
       const res  = await apiFetch(
         "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart",
-        {
-          method: "POST",
-          headers: { "Content-Type": `multipart/related; boundary=${boundary}` },
-          body:   multipart,
-        }
+        { method: "POST", headers: { "Content-Type": `multipart/related; boundary=${boundary}` }, body: multipart }
       );
       const data = await res.json();
       if (data.error) throw new Error(data.error.message);
-
     } else {
-      // ── Actualizar: media simple ──
       const res  = await apiFetch(
         `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`,
-        {
-          method:  "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body,
-        }
+        { method: "PATCH", headers: { "Content-Type": "application/json" }, body }
       );
       const data = await res.json();
       if (data.error) throw new Error(data.error.message);
     }
-
     setStatus(`Guardado a las ${new Date().toLocaleTimeString()} ✓`, "ok");
-
   } catch (e) {
     mostrarError("Error al guardar: " + e.message);
   }
@@ -508,20 +516,14 @@ async function guardar() {
 async function cargar() {
   if (!accessToken) return;
   setStatus("Cargando…", "loading");
-
   try {
     const fileId = await getFileId();
     if (!fileId) { setStatus("No hay datos guardados todavía"); return; }
-
-    const res  = await apiFetch(
-      `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`
-    );
+    const res  = await apiFetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`);
     const data = await res.json();
     if (data.error) throw new Error(data.error.message);
-
     document.getElementById("input").value = data.dato || "";
     setStatus(`Último guardado: ${data.ts ? new Date(data.ts).toLocaleString() : "?"}`, "ok");
-
   } catch (e) {
     mostrarError("Error al cargar: " + e.message);
   }
