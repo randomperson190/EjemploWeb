@@ -3,11 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Drive Storage · GIS Token Flow</title>
+  <title>Drive Storage · SPA</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='12' fill='%231a1d27'/><rect x='12' y='10' width='76' height='80' rx='6' fill='%234ade80'/><rect x='28' y='10' width='44' height='28' rx='3' fill='%230f1117'/><rect x='55' y='13' width='12' height='22' rx='2' fill='%234ade80'/><rect x='18' y='52' width='64' height='32' rx='4' fill='%230f1117'/><rect x='24' y='58' width='52' height='20' rx='3' fill='%231a1d27'/></svg>" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
-  <!-- Google Identity Services -->
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -31,24 +30,61 @@
       font-family: var(--sans);
       min-height: 100vh;
       display: flex;
+      flex-direction: column;
       align-items: center;
-      justify-content: center;
       padding: 24px;
     }
 
+    /* ── NAV ── */
+    #topNav {
+      display: none;
+      width: 100%;
+      max-width: 520px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px 16px;
+      margin-bottom: 16px;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .nav-brand {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--accent);
+      flex: 1;
+    }
+
+    .nav-links { display: flex; gap: 6px; }
+
+    .nav-btn {
+      font-family: var(--sans);
+      font-size: 13px;
+      font-weight: 500;
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      border-radius: 8px;
+      padding: 6px 14px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .nav-btn:hover { color: var(--text); border-color: var(--accent); }
+    .nav-btn.active { background: var(--accent-dim); color: var(--accent); border-color: var(--accent); }
+
+    /* ── CARD ── */
     .card {
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: 16px;
       width: 100%;
-      max-width: 460px;
+      max-width: 520px;
       overflow: hidden;
     }
 
-    .card-header {
-      padding: 28px 28px 20px;
-      border-bottom: 1px solid var(--border);
-    }
+    .card-header { padding: 28px 28px 20px; border-bottom: 1px solid var(--border); }
 
     .badge {
       display: inline-flex;
@@ -64,61 +100,32 @@
       margin-bottom: 14px;
     }
 
-    .badge::before {
-      content: '';
-      width: 6px; height: 6px;
-      background: var(--accent);
-      border-radius: 50%;
-    }
+    .badge::before { content: ''; width: 6px; height: 6px; background: var(--accent); border-radius: 50%; }
 
-    h1 {
-      font-size: 22px;
-      font-weight: 600;
-      letter-spacing: -0.3px;
-    }
-
+    h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.3px; }
     h1 span { color: var(--muted); font-weight: 400; }
 
     .card-body { padding: 24px 28px; display: flex; flex-direction: column; gap: 16px; }
 
-    /* Login view */
-    #loginView p {
-      color: var(--muted);
-      font-size: 14px;
-      line-height: 1.6;
-      margin-bottom: 8px;
-    }
+    /* ── VIEWS ── */
+    .view { display: none; flex-direction: column; gap: 16px; }
+    .view.active { display: flex; }
 
-    /* App view */
-    #appView { display: none; }
-
+    /* ── USER ROW ── */
     .user-row {
-      display: flex;
-      align-items: center;
-      gap: 10px;
+      display: flex; align-items: center; gap: 10px;
       padding: 12px;
       background: var(--bg);
       border-radius: 10px;
       border: 1px solid var(--border);
     }
 
-    .user-row img {
-      width: 32px; height: 32px;
-      border-radius: 50%;
-      object-fit: cover;
-    }
-
+    .user-row img { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; }
     .user-row .user-info { flex: 1; min-width: 0; }
-    .user-row .user-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .user-row .user-name  { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .user-row .user-email { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-    label {
-      font-size: 12px;
-      font-weight: 600;
-      letter-spacing: 0.5px;
-      text-transform: uppercase;
-      color: var(--muted);
-    }
+    label { font-size: 12px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; color: var(--muted); }
 
     textarea {
       width: 100%;
@@ -154,27 +161,37 @@
     button:active { transform: scale(0.97); }
     button:disabled { opacity: 0.4; cursor: not-allowed; }
 
-    .btn-primary {
-      background: var(--accent);
-      color: #0f1117;
-      flex: 1;
-    }
-
-    .btn-secondary {
-      background: var(--border);
-      color: var(--text);
-    }
-
-    .btn-google {
-      background: #fff;
-      color: #1f2937;
-      width: 100%;
-      justify-content: center;
-      padding: 13px;
-    }
-
+    .btn-primary   { background: var(--accent); color: #0f1117; flex: 1; }
+    .btn-secondary { background: var(--border); color: var(--text); }
+    .btn-google    { background: #fff; color: #1f2937; width: 100%; justify-content: center; padding: 13px; }
     .btn-google svg { flex-shrink: 0; }
 
+    /* ── INFO BOX ── */
+    .info-box {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    .info-box strong { color: var(--text); }
+    .info-box code   { color: var(--accent); font-family: var(--mono); font-size: 12px; }
+
+    .info-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+    }
+
+    .info-row:last-child { border-bottom: none; padding-bottom: 0; }
+    .info-row span:first-child { color: var(--muted); font-family: var(--mono); font-size: 12px; }
+    .info-row span:last-child  { color: var(--accent); font-family: var(--mono); font-size: 12px; }
+
+    /* ── STATUS ── */
     .status {
       font-family: var(--mono);
       font-size: 12px;
@@ -184,13 +201,11 @@
       background: var(--bg);
       color: var(--muted);
       min-height: 38px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
+      display: flex; align-items: center; gap: 8px;
     }
 
-    .status.ok { color: var(--accent); border-color: rgba(74,222,128,0.3); }
-    .status.err { color: var(--danger); border-color: rgba(248,113,113,0.3); }
+    .status.ok  { color: var(--accent); border-color: rgba(74,222,128,0.3); }
+    .status.err { color: var(--danger);  border-color: rgba(248,113,113,0.3); }
 
     .spinner {
       width: 12px; height: 12px;
@@ -203,24 +218,7 @@
 
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    .card-footer {
-      padding: 14px 28px;
-      border-top: 1px solid var(--border);
-      font-size: 11px;
-      color: var(--muted);
-      font-family: var(--mono);
-      text-align: center;
-      line-height: 1.7;
-    }
-
-    .card-footer a {
-      color: var(--accent);
-      text-decoration: none;
-      opacity: 0.8;
-    }
-
-    .card-footer a:hover { opacity: 1; }
-
+    /* ── ERROR BOX ── */
     .error-box {
       display: none;
       background: rgba(248,113,113,0.08);
@@ -234,25 +232,42 @@
       word-break: break-all;
     }
 
-    .error-box strong {
-      display: block;
-      font-size: 13px;
-      margin-bottom: 6px;
+    .error-box strong { display: block; font-size: 13px; margin-bottom: 6px; }
+    .error-box .hint  { margin-top: 10px; color: #fbbf24; font-size: 11px; }
+
+    /* ── FOOTER ── */
+    .card-footer {
+      padding: 14px 28px;
+      border-top: 1px solid var(--border);
+      font-size: 11px;
+      color: var(--muted);
+      font-family: var(--mono);
+      text-align: center;
+      line-height: 1.7;
     }
 
-    .error-box .hint {
-      margin-top: 10px;
-      color: #fbbf24;
-      font-size: 11px;
-    }
+    .card-footer a { color: var(--accent); text-decoration: none; opacity: 0.8; }
+    .card-footer a:hover { opacity: 1; }
+
+    #loginView p { color: var(--muted); font-size: 14px; line-height: 1.6; margin-bottom: 8px; }
   </style>
 </head>
 <body>
 
+<!-- NAV -->
+<nav id="topNav">
+  <span class="nav-brand">● Drive Storage</span>
+  <div class="nav-links">
+    <button class="nav-btn" data-nav="datos"  onclick="navTo('datos')">Datos</button>
+    <button class="nav-btn" data-nav="acerca" onclick="navTo('acerca')">Acerca</button>
+    <button class="nav-btn" style="color:var(--danger);border-color:rgba(248,113,113,0.4)" onclick="logout()">Salir</button>
+  </div>
+</nav>
+
 <div class="card">
   <div class="card-header">
-    <div class="badge">GIS · Token Flow</div>
-    <h1>Drive Storage <span>/ ejemplo</span></h1>
+    <div class="badge">GIS · Token Flow · SPA</div>
+    <h1 id="pageTitle">Drive Storage <span>/ ejemplo</span></h1>
   </div>
 
   <div class="card-body">
@@ -273,20 +288,20 @@
       </button>
     </div>
 
-    <!-- APP -->
-    <div id="appView">
-      <div class="user-row" id="userRow">
-        <img id="userAvatar" src="" alt="" />
+    <!-- ═══════════════ VISTA: DATOS ═══════════════ -->
+    <div id="view-datos" class="view">
+
+      <div class="user-row">
+        <img id="userAvatar" src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='16' fill='%232a2d3a'/></svg>" alt="" />
         <div class="user-info">
-          <div class="user-name" id="userName">—</div>
+          <div class="user-name"  id="userName">—</div>
           <div class="user-email" id="userEmail">—</div>
         </div>
-        <button class="btn-secondary" style="padding:7px 12px;font-size:12px" onclick="logout()">Salir</button>
       </div>
 
       <div>
         <label>Dato a guardar</label>
-        <textarea id="input" placeholder="Escribí cualquier texto..."></textarea>
+        <textarea id="input" placeholder="Escribí cualquier texto…"></textarea>
       </div>
 
       <div class="btn-row">
@@ -303,11 +318,51 @@
       <div class="status" id="status">Listo</div>
     </div>
 
+    <!-- ═══════════════ VISTA: ACERCA ═══════════════ -->
+    <div id="view-acerca" class="view">
+
+      <div class="info-box">
+        Esta es una <strong>Single Page Application (SPA)</strong>. La navegación usa <strong>hash routing</strong>
+        (<code>#datos</code>, <code>#acerca</code>) — la página <strong>nunca se recarga</strong>,
+        así que el token de Google queda vivo en memoria sin importar cuántas veces navegues entre secciones.
+      </div>
+
+      <div>
+        <label>Detalles técnicos</label>
+        <div class="info-box" style="padding: 0 16px;">
+          <div class="info-row">
+            <span>Auth</span>
+            <span>GIS · Token Flow (implícito)</span>
+          </div>
+          <div class="info-row">
+            <span>Scopes</span>
+            <span>drive.appdata · openid · profile</span>
+          </div>
+          <div class="info-row">
+            <span>Almacenamiento</span>
+            <span>appDataFolder · privado por app</span>
+          </div>
+          <div class="info-row">
+            <span>Routing</span>
+            <span>Hash SPA · sin recargas</span>
+          </div>
+          <div class="info-row">
+            <span>Token expira en</span>
+            <span id="tokenExpiry">—</span>
+          </div>
+        </div>
+      </div>
+
+      <button class="btn-secondary" style="align-self:flex-start" onclick="navTo('datos')">
+        ← Volver a Datos
+      </button>
+    </div>
+
   </div>
 
   <div class="card-footer">
-    appDataFolder · los datos son privados por app<br>
-    <span style="opacity:0.6">GIS · Token Flow · sin client_secret · </span><a href="https://pages.github.com" target="_blank" rel="noopener">GitHub Pages</a>
+    appDataFolder · datos privados por app<br>
+    <span style="opacity:0.6">GIS · Token Flow · SPA · sin client_secret · </span><a href="https://pages.github.com" target="_blank" rel="noopener">GitHub Pages</a>
   </div>
 </div>
 
@@ -316,11 +371,13 @@
 const CLIENT_ID = "54886740879-bhbtkpd85av0mq44hc3qbqd87neaffc0.apps.googleusercontent.com";
 const SCOPE     = "https://www.googleapis.com/auth/drive.appdata openid profile email";
 const FILE_NAME = "datos.json";
+const VIEWS     = ["datos", "acerca"];
 
-let accessToken = null;
-let tokenClient = null;
+let accessToken  = null;
+let tokenClient  = null;
+let tokenExpires = 0;
 
-// ─── INIT GIS ─────────────────────────────────────────────────────────────────
+// ─── INIT ─────────────────────────────────────────────────────────────────────
 window.addEventListener("load", () => {
   const tryInit = () => {
     if (typeof google !== "undefined" && google.accounts?.oauth2) {
@@ -330,56 +387,69 @@ window.addEventListener("load", () => {
         callback:       handleTokenResponse,
         error_callback: handleTokenError,
       });
-      // Mostrar botón "Reconectar" si el usuario ya autorizó antes
-      checkPrevSession();
     } else {
       setTimeout(tryInit, 100);
     }
   };
   tryInit();
+
+  // Hash routing: escuchar cambios sin recargar la página
+  window.addEventListener("hashchange", renderRoute);
 });
 
-// ─── SESIÓN PREVIA ────────────────────────────────────────────────────────────
-// Si el usuario ya autorizó antes, mostramos un botón especial de reconexión
-// en lugar de intentar un silent login (que dispara popup y los browsers lo bloquean).
-function checkPrevSession() {
-  const hadSession = localStorage.getItem("gis_had_session");
-  if (!hadSession) return; // primera visita, mostrar login normal
+// ─── HASH ROUTER ──────────────────────────────────────────────────────────────
+// Cambia window.location.hash → dispara hashchange → renderRoute.
+// El JS, las variables y el accessToken en memoria NUNCA se pierden.
+function navTo(view) {
+  if (!VIEWS.includes(view)) view = "datos";
+  window.location.hash = view;
+}
 
-  // Cambiar el texto del botón para indicar que ya autorizó antes
-  const btn = document.querySelector(".btn-google");
-  if (btn) {
-    btn.innerHTML = btn.innerHTML.replace("Continuar con Google", "Reconectar con Google");
+function renderRoute() {
+  if (!accessToken) return;
+
+  const hash = (window.location.hash || "#datos").replace("#", "");
+  const view = VIEWS.includes(hash) ? hash : "datos";
+
+  // Mostrar la vista correcta
+  VIEWS.forEach(v => {
+    document.getElementById("view-" + v).classList.toggle("active", v === view);
+  });
+
+  // Resaltar botón activo en nav
+  document.querySelectorAll(".nav-btn[data-nav]").forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.nav === view);
+  });
+
+  // Título dinámico
+  const labels = { datos: "Drive Storage <span>/ datos</span>", acerca: "Drive Storage <span>/ acerca</span>" };
+  document.getElementById("pageTitle").innerHTML = labels[view] || labels.datos;
+
+  // Actualizar tiempo de expiración al entrar en Acerca
+  if (view === "acerca" && tokenExpires) {
+    const mins = Math.max(0, Math.round((tokenExpires - Date.now()) / 60000));
+    document.getElementById("tokenExpiry").textContent = `~${mins} min`;
   }
 }
 
-// ─── AUTO-LOGIN SILENCIOSO (solo cuando el usuario lo pide explícitamente) ────
-// Nota: los browsers modernos bloquean cualquier popup no iniciado por un gesto
-// del usuario. Por eso el silent refresh solo se llama desde refreshToken()
-// (que ocurre dentro de apiFetch, que siempre está gatillada por un click).
-function autoLogin() {
-  // Función mantenida por compatibilidad — ya no se llama al cargar la página.
-}
-
-// ─── LOGIN MANUAL (botón) ─────────────────────────────────────────────────────
+// ─── LOGIN ────────────────────────────────────────────────────────────────────
 function login() {
-  if (!tokenClient) {
-    mostrarError("La librería de Google aún no cargó. Esperá un momento.");
-    return;
-  }
-  // Si ya autorizó antes, "select_account" evita pedir consent de nuevo.
-  const hadSession = localStorage.getItem("gis_had_session");
-  tokenClient.requestAccessToken({ prompt: hadSession ? "select_account" : "consent" });
+  if (!tokenClient) { mostrarError("La librería de Google aún no cargó. Esperá un momento."); return; }
+  tokenClient.requestAccessToken({ prompt: "consent" });
 }
 
-// ─── REFRESH TOKEN (silent, para cuando expira en medio de uso) ───────────────
+// ─── REFRESH SILENCIOSO (solo desde apiFetch en 401, no al cargar) ────────────
+// IMPORTANTE: nunca llamar esto al cargar la página — los browsers bloquean
+// el popup si no hay un gesto del usuario previo. Solo llamarlo desde apiFetch
+// que siempre está iniciado por un click.
 function refreshToken() {
   return new Promise((resolve, reject) => {
     const prev = tokenClient.callback;
     tokenClient.callback = (resp) => {
       tokenClient.callback = prev;
       if (resp.error) { reject(resp); return; }
-      accessToken = resp.access_token;
+      accessToken  = resp.access_token;
+      tokenExpires = Date.now() + (resp.expires_in ?? 3600) * 1000;
       resolve();
     };
     tokenClient.requestAccessToken({ prompt: "" });
@@ -401,10 +471,17 @@ async function apiFetch(url, opts = {}) {
 // ─── CALLBACKS ────────────────────────────────────────────────────────────────
 async function handleTokenResponse(response) {
   if (response.error) { handleTokenError(response); return; }
-  accessToken = response.access_token;
-  localStorage.setItem("gis_had_session", "1"); // marcar que autorizó (persiste entre recargas)
+  accessToken  = response.access_token;
+  tokenExpires = Date.now() + (response.expires_in ?? 3600) * 1000;
+
   document.getElementById("errorBox").style.display = "none";
-  mostrarApp();
+  document.getElementById("loginView").style.display = "none";
+  document.getElementById("topNav").style.display    = "flex";
+
+  // Navegar a la vista que corresponda (o a datos por defecto)
+  navTo(window.location.hash.replace("#", "") || "datos");
+  renderRoute();
+
   await cargarPerfil();
   await cargar();
 }
@@ -412,9 +489,10 @@ async function handleTokenResponse(response) {
 function handleTokenError(err) {
   const msg = err.type || err.error || "Error desconocido";
   const hints = {
-    "popup_closed_by_user":     "Cerraste el popup antes de completar el login.",
-    "access_denied":            "Denegaste el acceso. Es necesario para usar la app.",
-    "popup_blocked_by_browser": "El navegador bloqueó el popup. Permití popups para este sitio.",
+    popup_closed_by_user:     "Cerraste el popup antes de completar el login.",
+    access_denied:            "Denegaste el acceso. Es necesario para usar la app.",
+    popup_blocked_by_browser: "El navegador bloqueó el popup. Permití popups para este sitio.",
+    popup_failed_to_open:     "El navegador bloqueó el popup. Permití popups para este sitio y volvé a intentarlo.",
   };
   mostrarError(msg, hints[msg] || "Revisá la consola del navegador.");
 }
@@ -431,23 +509,19 @@ async function cargarPerfil() {
 }
 
 // ─── UI ───────────────────────────────────────────────────────────────────────
-function mostrarApp() {
-  document.getElementById("loginView").style.display = "none";
-  const app = document.getElementById("appView");
-  app.style.display       = "flex";
-  app.style.flexDirection = "column";
-  app.style.gap           = "16px";
-}
-
 function logout() {
   if (accessToken) google.accounts.oauth2.revoke(accessToken, () => {});
-  accessToken = null;
-  localStorage.removeItem("gis_had_session");
+  accessToken  = null;
+  tokenExpires = 0;
+
+  VIEWS.forEach(v => document.getElementById("view-" + v).classList.remove("active"));
+  document.getElementById("topNav").style.display    = "none";
   document.getElementById("loginView").style.display = "block";
-  document.getElementById("appView").style.display   = "none";
-  document.getElementById("input").value = "";
+  document.getElementById("input").value             = "";
   document.getElementById("errorBox").style.display  = "none";
+  document.getElementById("pageTitle").innerHTML     = "Drive Storage <span>/ ejemplo</span>";
   setStatus("Listo");
+  history.replaceState(null, "", window.location.pathname); // limpiar hash
 }
 
 function mostrarError(msg, hint = "") {
@@ -464,12 +538,11 @@ function setStatus(msg, type = "") {
   el.innerHTML = type === "loading" ? `<span class="spinner"></span> ${msg}` : msg;
 }
 
-// ─── DRIVE: buscar fileId ─────────────────────────────────────────────────────
+// ─── DRIVE ────────────────────────────────────────────────────────────────────
 async function getFileId() {
   const res  = await apiFetch(
     "https://www.googleapis.com/drive/v3/files?" +
-    "spaces=appDataFolder" +
-    "&fields=files(id,name)" +
+    "spaces=appDataFolder&fields=files(id,name)" +
     "&q=" + encodeURIComponent(`name='${FILE_NAME}'`)
   );
   const data = await res.json();
@@ -477,7 +550,6 @@ async function getFileId() {
   return data.files?.[0]?.id ?? null;
 }
 
-// ─── GUARDAR ──────────────────────────────────────────────────────────────────
 async function guardar() {
   if (!accessToken) return;
   setStatus("Guardando…", "loading");
@@ -512,7 +584,6 @@ async function guardar() {
   }
 }
 
-// ─── CARGAR ───────────────────────────────────────────────────────────────────
 async function cargar() {
   if (!accessToken) return;
   setStatus("Cargando…", "loading");
