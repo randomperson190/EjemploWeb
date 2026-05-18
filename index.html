@@ -3,9 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Drive Storage · PKCE</title>
+  <title>Drive Storage · GIS Token Flow</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <!-- Google Identity Services -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -207,7 +209,16 @@
       color: var(--muted);
       font-family: var(--mono);
       text-align: center;
+      line-height: 1.7;
     }
+
+    .card-footer a {
+      color: var(--accent);
+      text-decoration: none;
+      opacity: 0.8;
+    }
+
+    .card-footer a:hover { opacity: 1; }
 
     .error-box {
       display: none;
@@ -233,26 +244,13 @@
       color: #fbbf24;
       font-size: 11px;
     }
-
-    .debug-box {
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 10px 12px;
-      font-family: var(--mono);
-      font-size: 11px;
-      color: var(--muted);
-      line-height: 1.7;
-    }
-
-    .debug-box span { color: var(--accent); }
   </style>
 </head>
 <body>
 
 <div class="card">
   <div class="card-header">
-    <div class="badge">PKCE + Drive</div>
+    <div class="badge">GIS · Token Flow</div>
     <h1>Drive Storage <span>/ ejemplo</span></h1>
   </div>
 
@@ -260,21 +258,14 @@
 
     <!-- ERROR -->
     <div class="error-box" id="errorBox">
-      <strong>⚠ Error en el intercambio de token</strong>
+      <strong>⚠ Error de autenticación</strong>
       <span id="errorMsg"></span>
       <div class="hint" id="errorHint"></div>
     </div>
 
-    <!-- DEBUG INFO -->
-    <div class="debug-box" id="debugBox" style="display:none">
-      <div>redirect_uri: <span id="dbgRedirect"></span></div>
-      <div>code detectado: <span id="dbgCode"></span></div>
-      <div>verifier en storage: <span id="dbgVerifier"></span></div>
-    </div>
-
     <!-- LOGIN -->
     <div id="loginView">
-      <p>Autenticá con tu cuenta de Google para guardar y leer datos en tu propio Google Drive usando OAuth 2.0 PKCE.</p>
+      <p>Autenticá con tu cuenta de Google para guardar y leer datos en tu propio Google Drive.</p>
       <button class="btn-google" onclick="login()">
         <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615Z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18Z"/><path fill="#FBBC05" d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332Z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 6.29C4.672 4.163 6.656 3.58 9 3.58Z"/></svg>
         Continuar con Google
@@ -313,116 +304,122 @@
 
   </div>
 
-  <div class="card-footer">appDataFolder · los datos son privados por app</div>
+  <div class="card-footer">
+    appDataFolder · los datos son privados por app<br>
+    <span style="opacity:0.6">Google Identity Services · Token Flow · sin client_secret · compatible con</span>
+    <a href="https://pages.github.com" target="_blank" rel="noopener">GitHub Pages</a>
+  </div>
 </div>
 
 <script>
-// ─── CONFIG ───────────────────────────────────────────
-const CLIENT_ID    = "54886740879-bhbtkpd85av0mq44hc3qbqd87neaffc0.apps.googleusercontent.com";
-const REDIRECT_URI = "https://randomperson190.github.io/EjemploWeb/";
-const SCOPE        = "openid profile email https://www.googleapis.com/auth/drive.appdata";
-const FILE_NAME    = "datos.json";
+// ─── CONFIG ───────────────────────────────────────────────────────────────────
+// OAuth client type: "Web application" en Google Cloud Console
+// Authorized JavaScript origins: https://TU_USUARIO.github.io
+// NO necesitás redirect URIs para este flow
+const CLIENT_ID = "54886740879-bhbtkpd85av0mq44hc3qbqd87neaffc0.apps.googleusercontent.com";
+const SCOPE     = "https://www.googleapis.com/auth/drive.appdata";
+const FILE_NAME = "datos.json";
 
-let accessToken = null;
+let accessToken  = null;
+let tokenClient  = null;   // GIS TokenClient
 
-// ─── PKCE helpers ─────────────────────────────────────
-function randomString(len) {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-  return Array.from(crypto.getRandomValues(new Uint8Array(len)))
-    .map(v => chars[v % chars.length]).join("");
+// ─── INIT GIS (se llama cuando la librería termina de cargar) ─────────────────
+function initGIS() {
+  tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: CLIENT_ID,
+    scope: SCOPE + " openid profile email",
+    callback: handleTokenResponse,
+    error_callback: handleTokenError,
+  });
 }
 
-async function sha256(plain) {
-  const data = new TextEncoder().encode(plain);
-  return crypto.subtle.digest("SHA-256", data);
+// Esperar a que el script de GIS esté listo
+window.addEventListener("load", () => {
+  // El script GIS llama a google.accounts cuando está listo.
+  // Usamos un pequeño poll por si onload ya pasó.
+  const tryInit = () => {
+    if (typeof google !== "undefined" && google.accounts?.oauth2) {
+      initGIS();
+    } else {
+      setTimeout(tryInit, 100);
+    }
+  };
+  tryInit();
+});
+
+// ─── LOGIN ────────────────────────────────────────────────────────────────────
+function login() {
+  if (!tokenClient) {
+    mostrarError("La librería de Google aún no cargó. Esperá un momento y volvé a intentar.");
+    return;
+  }
+  // Pedimos el token directamente. El popup de Google se abre.
+  tokenClient.requestAccessToken({ prompt: "consent" });
 }
 
-function base64url(buf) {
-  return btoa(String.fromCharCode(...new Uint8Array(buf)))
-    .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
-
-// ─── LOGIN ────────────────────────────────────────────
-async function login() {
-  const verifier   = randomString(64);
-  const challenge  = base64url(await sha256(verifier));
-  localStorage.setItem("pkce_verifier", verifier);
-
-  const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
-  url.searchParams.set("client_id",             CLIENT_ID);
-  url.searchParams.set("redirect_uri",          REDIRECT_URI);
-  url.searchParams.set("response_type",         "code");
-  url.searchParams.set("scope",                 SCOPE);
-  url.searchParams.set("code_challenge",        challenge);
-  url.searchParams.set("code_challenge_method", "S256");
-  url.searchParams.set("access_type",           "offline");
-  url.searchParams.set("prompt",                "consent");
-
-  window.location = url.toString();
-}
-
-// ─── TOKEN EXCHANGE ───────────────────────────────────
-async function intercambiarCodigo(code) {
-  // Mostrar debug info
-  const dbg = document.getElementById("debugBox");
-  dbg.style.display = "block";
-  document.getElementById("dbgRedirect").textContent  = REDIRECT_URI;
-  document.getElementById("dbgCode").textContent      = code ? code.slice(0, 20) + "…" : "no detectado";
-  document.getElementById("dbgVerifier").textContent  = localStorage.getItem("pkce_verifier") ? "✓ presente" : "✗ ausente";
-
-  setStatus("Autenticando…", "loading");
-
-  let res, data;
-  try {
-    res  = await fetch("https://oauth2.googleapis.com/token", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        client_id:     CLIENT_ID,
-        code,
-        code_verifier: localStorage.getItem("pkce_verifier"),
-        grant_type:    "authorization_code",
-        redirect_uri:  REDIRECT_URI
-      })
-    });
-    data = await res.json();
-  } catch (e) {
-    mostrarError("Error de red: " + e.message, "Verificá tu conexión a internet.");
+// ─── CALLBACK: token recibido ─────────────────────────────────────────────────
+async function handleTokenResponse(response) {
+  if (response.error) {
+    handleTokenError(response);
     return;
   }
 
-  if (data.error) {
-    const hints = {
-      "redirect_uri_mismatch":
-        `El redirect_uri no coincide. Registrá EXACTAMENTE esto en Google Cloud Console → Credentials:\n${REDIRECT_URI}`,
-      "invalid_client":
-        "Tu cliente OAuth requiere client_secret (tipo 'Web application'). Creá un nuevo cliente de tipo 'Desktop app' en Google Cloud Console para usar PKCE sin secret.",
-      "invalid_grant":
-        "El código ya fue usado o expiró. Intentá loguearte de nuevo.",
-    };
-    mostrarError(
-      `${data.error}: ${data.error_description || ""}`,
-      hints[data.error] || "Revisá la consola del navegador para más detalles."
-    );
-    console.error("Token error response:", data);
-    return;
-  }
+  accessToken = response.access_token;
 
-  if (!data.access_token) {
-    mostrarError("Respuesta inesperada — no llegó access_token.", JSON.stringify(data));
-    return;
-  }
-
-  // Todo OK
-  accessToken = data.access_token;
-  localStorage.removeItem("pkce_verifier");
-  dbg.style.display = "none";
-
-  window.history.replaceState({}, "", REDIRECT_URI);
+  // Limpiar error si había alguno
+  document.getElementById("errorBox").style.display = "none";
 
   mostrarApp();
   await cargarPerfil();
   await cargar();
+}
+
+// ─── CALLBACK: error en el token ──────────────────────────────────────────────
+function handleTokenError(err) {
+  const msg = err.type || err.error || "Error desconocido";
+  const hints = {
+    "popup_closed_by_user": "Cerraste el popup antes de completar el login.",
+    "access_denied":        "Denegaste el acceso. Es necesario para usar la app.",
+    "popup_blocked_by_browser": "El navegador bloqueó el popup. Permití popups para este sitio.",
+  };
+  mostrarError(msg, hints[msg] || "Revisá la consola del navegador para más detalles.");
+}
+
+// ─── PERFIL ───────────────────────────────────────────────────────────────────
+async function cargarPerfil() {
+  try {
+    const res  = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+    const info = await res.json();
+    document.getElementById("userName").textContent  = info.name  || "—";
+    document.getElementById("userEmail").textContent = info.email || "—";
+    if (info.picture) document.getElementById("userAvatar").src = info.picture;
+  } catch (e) {
+    console.warn("No se pudo cargar el perfil:", e);
+  }
+}
+
+// ─── UI helpers ───────────────────────────────────────────────────────────────
+function mostrarApp() {
+  document.getElementById("loginView").style.display = "none";
+  const app = document.getElementById("appView");
+  app.style.display        = "flex";
+  app.style.flexDirection  = "column";
+  app.style.gap            = "16px";
+}
+
+function logout() {
+  // Revocar el token en Google
+  if (accessToken) {
+    google.accounts.oauth2.revoke(accessToken, () => {});
+  }
+  accessToken = null;
+  document.getElementById("loginView").style.display = "block";
+  document.getElementById("appView").style.display   = "none";
+  document.getElementById("input").value = "";
+  document.getElementById("errorBox").style.display  = "none";
+  setStatus("Listo");
 }
 
 function mostrarError(msg, hint = "") {
@@ -433,33 +430,6 @@ function mostrarError(msg, hint = "") {
   document.getElementById("errorHint").textContent = hint;
 }
 
-// ─── PERFIL ───────────────────────────────────────────
-async function cargarPerfil() {
-  const res  = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
-    headers: { Authorization: `Bearer ${accessToken}` }
-  });
-  const info = await res.json();
-  document.getElementById("userName").textContent  = info.name  || "—";
-  document.getElementById("userEmail").textContent = info.email || "—";
-  if (info.picture) document.getElementById("userAvatar").src = info.picture;
-}
-
-// ─── UI helpers ───────────────────────────────────────
-function mostrarApp() {
-  document.getElementById("loginView").style.display = "none";
-  document.getElementById("appView").style.display   = "flex";
-  document.getElementById("appView").style.flexDirection = "column";
-  document.getElementById("appView").style.gap = "16px";
-}
-
-function logout() {
-  accessToken = null;
-  document.getElementById("loginView").style.display = "block";
-  document.getElementById("appView").style.display   = "none";
-  document.getElementById("input").value = "";
-  setStatus("Listo");
-}
-
 function setStatus(msg, type = "") {
   const el = document.getElementById("status");
   el.className = "status" + (type === "ok" ? " ok" : type === "err" ? " err" : "");
@@ -468,7 +438,7 @@ function setStatus(msg, type = "") {
     : msg;
 }
 
-// ─── DRIVE: encontrar o crear archivo ─────────────────
+// ─── DRIVE: encontrar archivo ─────────────────────────────────────────────────
 async function getFileId() {
   const res  = await fetch(
     `https://www.googleapis.com/drive/v3/files?q=name='${FILE_NAME}' and spaces='appDataFolder'&fields=files(id)`,
@@ -478,65 +448,70 @@ async function getFileId() {
   return data.files?.[0]?.id || null;
 }
 
-// ─── GUARDAR ──────────────────────────────────────────
+// ─── GUARDAR ──────────────────────────────────────────────────────────────────
 async function guardar() {
   if (!accessToken) return;
   setStatus("Guardando…", "loading");
 
-  const contenido = { dato: document.getElementById("input").value, ts: new Date().toISOString() };
-  let fileId = await getFileId();
+  try {
+    const contenido = { dato: document.getElementById("input").value, ts: new Date().toISOString() };
+    let fileId = await getFileId();
 
-  if (!fileId) {
-    // Crear archivo nuevo
-    const form = new FormData();
-    form.append("metadata", new Blob([JSON.stringify({
-      name: FILE_NAME, parents: ["appDataFolder"]
-    })], { type: "application/json" }));
-    form.append("file", new Blob([JSON.stringify(contenido)], { type: "application/json" }));
+    if (!fileId) {
+      const form = new FormData();
+      form.append("metadata", new Blob([JSON.stringify({
+        name: FILE_NAME, parents: ["appDataFolder"]
+      })], { type: "application/json" }));
+      form.append("file", new Blob([JSON.stringify(contenido)], { type: "application/json" }));
 
-    const res  = await fetch(
-      "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart",
-      { method: "POST", headers: { Authorization: `Bearer ${accessToken}` }, body: form }
-    );
-    const data = await res.json();
-    fileId = data.id;
-  } else {
-    // Actualizar existente
-    await fetch(
-      `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`,
-      {
-        method: "PATCH",
-        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-        body: JSON.stringify(contenido)
-      }
-    );
+      const res  = await fetch(
+        "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart",
+        { method: "POST", headers: { Authorization: `Bearer ${accessToken}` }, body: form }
+      );
+      const data = await res.json();
+      if (data.error) throw new Error(data.error.message);
+    } else {
+      const res = await fetch(
+        `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`,
+        {
+          method: "PATCH",
+          headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+          body: JSON.stringify(contenido)
+        }
+      );
+      const data = await res.json();
+      if (data.error) throw new Error(data.error.message);
+    }
+
+    setStatus(`Guardado a las ${new Date().toLocaleTimeString()} ✓`, "ok");
+  } catch (e) {
+    mostrarError("Error al guardar: " + e.message);
   }
-
-  setStatus(`Guardado a las ${new Date().toLocaleTimeString()} ✓`, "ok");
 }
 
-// ─── CARGAR ───────────────────────────────────────────
+// ─── CARGAR ───────────────────────────────────────────────────────────────────
 async function cargar() {
   if (!accessToken) return;
   setStatus("Cargando…", "loading");
 
-  const fileId = await getFileId();
-  if (!fileId) { setStatus("No hay datos guardados todavía"); return; }
+  try {
+    const fileId = await getFileId();
+    if (!fileId) { setStatus("No hay datos guardados todavía"); return; }
 
-  const res  = await fetch(
-    `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
-    { headers: { Authorization: `Bearer ${accessToken}` } }
-  );
-  const data = await res.json();
+    const res  = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message);
 
-  document.getElementById("input").value = data.dato || "";
-  const ts = data.ts ? new Date(data.ts).toLocaleString() : "?";
-  setStatus(`Último guardado: ${ts}`, "ok");
+    document.getElementById("input").value = data.dato || "";
+    const ts = data.ts ? new Date(data.ts).toLocaleString() : "?";
+    setStatus(`Último guardado: ${ts}`, "ok");
+  } catch (e) {
+    mostrarError("Error al cargar: " + e.message);
+  }
 }
-
-// ─── INIT ─────────────────────────────────────────────
-const code = new URLSearchParams(window.location.search).get("code");
-if (code) intercambiarCodigo(code);
 </script>
 </body>
 </html>
