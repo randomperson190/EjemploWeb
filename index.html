@@ -308,7 +308,7 @@
   <div class="card-footer">
     appDataFolder · los datos son privados por app<br>
     <span style="opacity:0.6">GIS · Token Flow · sin client_secret · </span><a href="https://pages.github.com" target="_blank" rel="noopener">GitHub Pages</a><br>
-    <span style="opacity:0.45; font-size:10px;">build: 2025-01-28 · 21:47:03</span>
+    <span style="opacity:0.45; font-size:10px;">build: BUILD_TIMESTAMP</span>
   </div>
 </div>
 
@@ -441,14 +441,13 @@ function setStatus(msg, type = "") {
 
 // ─── DRIVE: buscar fileId ─────────────────────────────────────────────────────
 async function getFileId() {
-  // Construir la URL manualmente para encodear bien el parámetro q
-  const params = new URLSearchParams({
-    q:      `name='${FILE_NAME}' and trashed=false and spaces='appDataFolder'`,
-    spaces: "appDataFolder",
-    fields: "files(id)",
-  });
+  // Para appDataFolder el único filtro que funciona es por nombre en el campo q
+  // y spaces como parámetro separado — NO dentro del q
   const res  = await apiFetch(
-    `https://www.googleapis.com/drive/v3/files?${params.toString()}`
+    "https://www.googleapis.com/drive/v3/files?" +
+    "spaces=appDataFolder" +
+    "&fields=files(id,name)" +
+    "&q=" + encodeURIComponent(`name='${FILE_NAME}'`)
   );
   const data = await res.json();
   if (data.error) throw new Error(`getFileId: ${data.error.message}`);
